@@ -186,21 +186,69 @@ def delete_client(client_id):
     db.session.delete(client)
     db.session.commit()
     return jsonify({"message": f'sucessfully deleted client {client_id}'}), 200
+
 #* Session Endpoints
 # Create Session Endpoint
+@app.route("/api/sessions", methods=["POST"])
+def create_session():
+    try:
+        session_data = session_schema.load(request.json)
+    except ValidationError as e:
+        return jsonify(e.messages), 400
+    
+    new_session = Session(date=session_data['date'], type=session_data['type'], status=session_data['status'], trainer_id=session_data['trainer_id'], client_id=session_data['client_id'])
 
+
+    db.session.add(new_session)
+    db.session.commit()
 
 # Retrieve all Sessions
-
+@app.route("/api/sessions", methods=["GET"])
+def get_sessions():
+    query = select(Session)
+    result = db.session.execute(query).scalalars().all()
+    return clients_schema.jsonify(result), 200
 
 # Retrieve Session by ID
+@app.route("/api/sessions/<int:session_id>", method=["GET"])
+def get_session(session_id):
+    query = select(Session).where(Session.id == session_id)
+    session = db.session.execute(query).scalars().first()
 
+    if session == None:
+        return jsonify({"message": "invalid session id"}), 400
+
+    return sessions_schema.jsonify(session), 200
 
 # Update Session by ID
+@app.route("/api/sessions/<int:session_id>", methods=["PUT"])
+def update_sesion(session_id):
+    query = select(Session).where(Session.id == session_id)
+    session = db.session.execute(query).scalars(). first()
 
+    if session == None:
+        return jsonify({"message": "invalid session id"}), 400
+
+    try:
+        session_data = session_schema.load(request.json)
+    except ValidationError as e:
+        return jsonify(e.messages), 400
+
+    for field, value in session_data.items():
+        setattr(session, field, value)
+
+    db.session.commit()
+    return session_schema.jsonify(session), 200
 
 # Delete Session by ID
+@app.route("/api/sessions/<int:session_id>", methods=["DELETE"])
+def delete_session(session_id):
+    query = select(Session).where(Session.id == session_id)
+    session = db.session.execute(query).scalars().first()
 
+    db.session.delete(session)
+    db.session.commit()
+    return jsonify({"message": f'sucessfully deleted session {session_id}'}), 200
 
 with app.app_context():
     db.create_all()
