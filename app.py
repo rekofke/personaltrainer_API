@@ -1,35 +1,29 @@
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_marshmallow import Marshmallow
+from marshmallow import ValidationError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import Integer, String, DateTime, ForeignKey, Date, Table, Column
+from sqlalchemy import Integer, String, DateTime, ForeignKey, Date, Table, Column, select
 from typing import List, Optional
 
 class Base(DeclarativeBase):
     pass
 
-db = SQLAlchemy(model_class=Base)
-
 # create the app
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://root:C%40ntget1n@localhost/module_project'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:C%40ntget1n@127.0.0.1/module_project'
+db = SQLAlchemy(model_class=Base)
+ma = Marshmallow(app)
 
 db.init_app(app)
 
 # Association table for many-to-many relationship between trainers and sessions
-trainer_session = db.Table(
+trainer_session = Table(
     'trainer_session',
     Base.metadata,
-    db.Column('trainer_id', ForeignKey('trainers.id')),
-    db.Column('session_id', ForeignKey('sessions.id')),
+    Column('trainer_id', Integer, ForeignKey('trainers.id'), primary_key=True),
+    Column('session_id', Integer, ForeignKey('sessions.id'), primary_key=True)
 )
-
-
-# trainer_session = Table(
-#     'trainer_session',
-#     Base.metadata,
-#     Column('trainer_id', Integer, ForeignKey('trainers.id'), primary_key=True),
-#     Column('session_id', Integer, ForeignKey('sessions.id'), primary_key=True)
-#)
 
 
 class Trainer(Base):
@@ -41,9 +35,9 @@ class Trainer(Base):
 
     # One trainer can have many clients
     clients: Mapped[List['Client']] = relationship(back_populates='trainer')
-    # One trainer can conduct many sessions
-    sessions: Mapped[List['Session']] = relationship(back_populates='trainer')
-    sessions: Mapped[List['Session']] = relationship(secondary=trainer_session)
+    # Many-to-many relationship with sessions
+    sessions: Mapped[List['Session']] = relationship(secondary=trainer_session, back_populates='trainers')
+
 
 class Client(Base): 
     __tablename__ = 'clients'
@@ -51,7 +45,7 @@ class Client(Base):
     name: Mapped[str] = mapped_column(String(150))
     email: Mapped[str] = mapped_column(String(150), unique=True)
     phone: Mapped[str] = mapped_column(String(150))
-    dob: Mapped[Date] = mapped_column(Date)  # Changed from String to Date
+    dob: Mapped[Date] = mapped_column(Date)
     trainer_id: Mapped[Optional[int]] = mapped_column(ForeignKey('trainers.id'), nullable=True)
 
     # Many clients can have one trainer
@@ -59,7 +53,6 @@ class Client(Base):
     # One client can have many sessions
     sessions: Mapped[List['Session']] = relationship(back_populates='client')
     
-
 
 class Session(Base):
     __tablename__ = 'sessions'
@@ -70,11 +63,67 @@ class Session(Base):
     trainer_id: Mapped[int] = mapped_column(ForeignKey('trainers.id'))
     client_id: Mapped[int] = mapped_column(ForeignKey('clients.id'))
 
-    # Many sessions belong to one trainer
-    trainer: Mapped['Trainer'] = relationship(back_populates='sessions')
     # Many sessions belong to one client
     client: Mapped['Client'] = relationship(back_populates='sessions')
-    trainers: Mapped[List["Trainer"]] = db.relationship(secondary=trainer_session)
+    # Many-to-many relationship with trainers
+    trainers: Mapped[List["Trainer"]] = relationship(secondary=trainer_session, back_populates='sessions', overlaps="sessions")
+
+
+#* Schemas
+    
+class TrainerSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = Trainer
+
+trainer_schema = TrainerSchema()
+trainers_schema = TrainerSchema(many=True)
+
+class ClientSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = Client
+client_schema = ClientSchema()
+clients_schema = ClientSchema(many=True)
+
+class SessionSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = Session
+session_schema = SessionSchema()
+sessions_schema = SessionSchema(many=True)
+
+#* Routes/Endpoints
+# Create Trainer Endpoint
+@app.route("/api/trainers", methods=["POST"])
+def create_trainer():
+    try:
+        trainer_data = trainer_schema.load(request.json)
+    except ValidationError as e:
+        return jsonify(e.messages), 400
+
+    new_trainer = Trainer(name=trainer_data['name'], email=trainer_data['email'], phone=trainer_data['phone'])
+
+    #Save new_trainer to DB
+    db.session.add(new_trainer)
+    db.session.commit()
+
+    return trainer_schema.jsonify(new_trainer), 201
+
+# Retrieve all Trainers
+@app.route("/api/trainers", methods=["GET"])
+def get_trainers():
+    query = select(Trainer)
+    result = db.session.execute(query).scalars().all()
+    return trainers_schema.jsonify(result), 200
+
+# Retrieve Trainer by ID
+@app.route("/api/trainers/<int:trainer_id>", methods=["GET"])
+def get_trainer(trainer_id):
+    query = select(Trainer).where(Trainer.id == trainer_id)
+    trainer = db.session.execute(query).scalars().first()
+
+    if trainer is None:
+        return jsonify({"message": "invalid trainer id"}), 400
+
+    return trainer_schema.jsonify(trainer), 200
 
 
 with app.app_context():
