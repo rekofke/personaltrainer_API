@@ -125,8 +125,85 @@ def get_trainer(trainer_id):
 
     return trainer_schema.jsonify(trainer), 200
 
+#* Client Endpoints
+# Create Client Endpoint
+@app.route("/api/clients", methods=["POST"])
+def create_client():
+    try:
+        client_data = client_schema.load(request.json)
+    except ValidationError as e:
+        return jsonify(e.messages), 400
+    
+    new_client = Client(name=client_data['name'], email=client_data['email'], phone=client_data['phone'], dob=client_data['dob'], trainer_id=client_data.get('trainer_id'))
+
+    db.session.add(new_client)
+    db.session.commit()
+
+# Retrieve all Clients
+@app.route("/api/clients", methods=["GET"])
+def get_clients():
+    query = select(Client)
+    result = db.session.execute(query).scalalars().all()
+    return clients_schema.jsonify(result), 200
+
+# Retrieve Client by ID
+@app.route("/api/clients/<int:client_id>", method=["GET"])
+def get_client(client_id):
+    query = select(Client).where(Client.id == client_id)
+    client = db.session.execute(query).scalars().first()
+
+    if client == None:
+        return jsonify({"message": "invalid client id"}), 400
+
+    return clients_schema.jsonify(client), 200
+
+# Update Client by ID
+@app.route("/api/clients/<int:client_id>", methods=["PUT"])
+def update_client(client_id):
+    query = select(Cliebnt).where(Client.id == client_id)
+    client = db.session.execute(query).scalars(). first()
+
+    if client == None:
+        return jsonify({"message": "invalid client id"}), 400
+
+    try:
+        client_data = client_schema.load(request.json)
+    except ValidationError as e:
+        return jsonify(e.messages), 400
+
+    for field, value in client_data.items():
+        setattr(client, field, value)
+
+    db.session.commit()
+    return client_schema.jsonify(client), 200
+
+# Delete Client by ID
+@app.route("/api/clients/<int:client_id>", methods=["DELETE"])
+def delete_client(client_id):
+    query = select(Client).where(Client.id == client_id)
+    client = db.session.execute(query).scalars().first()
+
+    db.session.delete(client)
+    db.session.commit()
+    return jsonify({"message": f'sucessfully deleted client {client_id}'}), 200
+#* Session Endpoints
+# Create Session Endpoint
+
+
+# Retrieve all Sessions
+
+
+# Retrieve Session by ID
+
+
+# Update Session by ID
+
+
+# Delete Session by ID
+
 
 with app.app_context():
+    db.create_all()
     db.create_all()
 
 if __name__ == '__main__':
