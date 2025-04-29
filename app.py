@@ -5,6 +5,7 @@ from marshmallow import ValidationError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import Integer, String, DateTime, ForeignKey, Date, Table, Column, select
 from typing import List, Optional
+# from flask_marshmallow import SQLAlchemyAutoSchema
 
 class Base(DeclarativeBase):
     pass
@@ -143,11 +144,11 @@ def create_client():
 @app.route("/api/clients", methods=["GET"])
 def get_clients():
     query = select(Client)
-    result = db.session.execute(query).scalalars().all()
+    result = db.session.execute(query).scalars().all()
     return clients_schema.jsonify(result), 200
 
 # Retrieve Client by ID
-@app.route("/api/clients/<int:client_id>", method=["GET"])
+@app.route("/api/clients/<int:client_id>", methods=["GET"])
 def get_client(client_id):
     query = select(Client).where(Client.id == client_id)
     client = db.session.execute(query).scalars().first()
@@ -160,7 +161,7 @@ def get_client(client_id):
 # Update Client by ID
 @app.route("/api/clients/<int:client_id>", methods=["PUT"])
 def update_client(client_id):
-    query = select(Cliebnt).where(Client.id == client_id)
+    query = select(Client).where(Client.id == client_id)
     client = db.session.execute(query).scalars(). first()
 
     if client == None:
@@ -206,11 +207,11 @@ def create_session():
 @app.route("/api/sessions", methods=["GET"])
 def get_sessions():
     query = select(Session)
-    result = db.session.execute(query).scalalars().all()
+    result = db.session.execute(query).scalars().all()
     return clients_schema.jsonify(result), 200
 
 # Retrieve Session by ID
-@app.route("/api/sessions/<int:session_id>", method=["GET"])
+@app.route("/api/sessions/<int:session_id>", methods=["GET"])
 def get_session(session_id):
     query = select(Session).where(Session.id == session_id)
     session = db.session.execute(query).scalars().first()
@@ -251,8 +252,9 @@ def delete_session(session_id):
     return jsonify({"message": f'sucessfully deleted session {session_id}'}), 200
 
 with app.app_context():
+    db.drop_all()
     db.create_all()
-    db.create_all()
+    
 
 if __name__ == '__main__':
     app.run(debug=True)
